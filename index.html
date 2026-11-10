@@ -2,19 +2,25 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>실시간 타자 대결 게임</title>
-  <!-- React & Babel -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PeerJS (서버 없이 P2P 통신을 가능하게 해주는 핵심 라이브러리) -->
-  <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+  <!-- React & ReactDOM (버전 고정) -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel for JSX (버전 고정) -->
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- PeerJS: 브라우저끼리 직접 연결 (가입·키 불필요) -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body { font-family: 'Pretendard', sans-serif; }
-    .ink-blind { background-color: black !important; color: transparent !important; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+    .ink-blind {
+      background-color: black !important;
+      color: transparent !important;
+      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+    }
   </style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
@@ -23,238 +29,562 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // 연습 단어 및 문장
-    const WORDS = ["사과", "바나나", "호랑이", "컴퓨터", "우주선", "무지개", "학교", "선생님", "학생", "대한민국", "지구본", "이담초등학교", "왕사슴벌레", "자전거", "비행기", "스마트폰"];
-    const SENTENCES = [
-      "가는 말이 고와야 오는 말이 곱다.",
-      "티끌 모아 태산이 된다.",
-      "원숭이도 나무에서 떨어질 때가 있다.",
-      "세 살 버릇 여든까지 간다.",
-      "고생 끝에 즐거움이 온다.",
-      "아는 것이 힘이다.",
-      "천 리 길도 한 걸음부터 시작한다."
+    // ----------------------------------------------------
+    // 단어 및 문장 데이터
+    // ----------------------------------------------------
+    const WORDS = [
+      // 동물
+      "호랑이", "코끼리", "기린", "다람쥐", "고양이", "강아지", "토끼", "거북이", "펭귄", "돌고래",
+      "독수리", "부엉이", "캥거루", "코알라", "악어", "얼룩말", "원숭이", "고슴도치", "개구리", "나비",
+      "잠자리", "무당벌레", "사슴", "여우", "늑대", "고래", "상어", "문어", "오징어", "병아리",
+      // 음식
+      "사과", "바나나", "딸기", "수박", "포도", "복숭아", "참외", "귤", "초콜릿", "아이스크림",
+      "떡볶이", "김밥", "비빔밥", "불고기", "된장찌개", "김치", "라면", "만두", "샌드위치", "햄버거",
+      "피자", "치킨", "떡국", "잡채", "미역국", "옥수수", "고구마", "감자", "토마토", "당근",
+      // 학교
+      "학교", "선생님", "학생", "교실", "칠판", "운동장", "도서관", "급식실", "교과서", "공책",
+      "연필", "지우개", "필통", "가방", "실내화", "쉬는시간", "방학", "소풍", "운동회", "발표",
+      "숙제", "시간표", "친구", "짝꿍", "모둠", "과학실", "음악실", "보건실", "체육관", "졸업식",
+      // 자연과 과학
+      "무지개", "우주선", "지구본", "태양", "보름달", "별자리", "은하수", "화산", "지진", "태풍",
+      "소나기", "눈사람", "봄바람", "단풍", "바다", "강물", "폭포", "사막", "숲속", "꽃밭",
+      "현미경", "망원경", "자석", "전기", "실험", "공룡", "화석", "행성", "인공위성", "로봇",
+      // 생활과 사회
+      "대한민국", "태극기", "무궁화", "한글", "세종대왕", "독도", "제주도", "한강", "경복궁", "한복",
+      "컴퓨터", "스마트폰", "자전거", "비행기", "기차", "지하철", "버스", "소방차", "구급차", "신호등",
+      "횡단보도", "놀이터", "박물관", "미술관", "영화관", "수영장", "병원", "우체국", "은행", "시장",
+      // 경제와 생활
+      "용돈", "저축", "소비", "가격", "선택", "기회비용", "절약", "화폐", "저금통", "영수증",
+      "가게", "손님", "주인", "직업", "회사", "공장", "농부", "어부", "요리사", "과학자",
+      // 마음과 가치
+      "약속", "우정", "용기", "배려", "존중", "책임", "정직", "협동", "감사", "희망",
+      "행복", "사랑", "웃음", "노력", "도전", "성실", "양보", "칭찬", "응원", "평화"
     ];
 
+    const SENTENCES = [
+      // 속담
+      "가는 말이 고와야 오는 말이 곱다.",
+      "티끌 모아 태산이다.",
+      "원숭이도 나무에서 떨어진다.",
+      "세 살 버릇 여든까지 간다.",
+      "고생 끝에 낙이 온다.",
+      "아는 것이 힘이다.",
+      "천 리 길도 한 걸음부터.",
+      "낮말은 새가 듣고 밤말은 쥐가 듣는다.",
+      "백지장도 맞들면 낫다.",
+      "소 잃고 외양간 고친다.",
+      "돌다리도 두들겨 보고 건너라.",
+      "발 없는 말이 천 리 간다.",
+      "윗물이 맑아야 아랫물이 맑다.",
+      "콩 심은 데 콩 나고 팥 심은 데 팥 난다.",
+      "호랑이도 제 말 하면 온다.",
+      "하늘이 무너져도 솟아날 구멍이 있다.",
+      "등잔 밑이 어둡다.",
+      "시작이 반이다.",
+      "급할수록 돌아가라.",
+      "꿩 먹고 알 먹는다.",
+      "누워서 떡 먹기.",
+      "말 한마디로 천 냥 빚을 갚는다.",
+      "바늘 도둑이 소도둑 된다.",
+      "벼는 익을수록 고개를 숙인다.",
+      "사공이 많으면 배가 산으로 간다.",
+      "서당 개 삼 년이면 풍월을 읊는다.",
+      "쇠뿔도 단김에 빼라.",
+      "열 번 찍어 안 넘어가는 나무 없다.",
+      "지렁이도 밟으면 꿈틀한다.",
+      "하룻강아지 범 무서운 줄 모른다.",
+      "가랑비에 옷 젖는 줄 모른다.",
+      "고래 싸움에 새우 등 터진다.",
+      "공든 탑이 무너지랴.",
+      "구슬이 서 말이라도 꿰어야 보배다.",
+      "까마귀 날자 배 떨어진다.",
+      "낫 놓고 기역 자도 모른다.",
+      "뛰는 놈 위에 나는 놈 있다.",
+      "믿는 도끼에 발등 찍힌다.",
+      "빈 수레가 요란하다.",
+      "작은 고추가 맵다.",
+      "개구리 올챙이 적 생각 못 한다.",
+      "금강산도 식후경이다.",
+      "될성부른 나무는 떡잎부터 알아본다.",
+      "배보다 배꼽이 더 크다.",
+      "우물을 파도 한 우물을 파라.",
+      "무소식이 희소식이다.",
+      "웃는 얼굴에 침 못 뱉는다.",
+      "아니 땐 굴뚝에 연기 나랴.",
+      "닭 쫓던 개 지붕 쳐다본다.",
+      "남의 떡이 더 커 보인다.",
+      "가재는 게 편이다.",
+      "꼬리가 길면 밟힌다.",
+      "병 주고 약 준다.",
+      "하나를 보면 열을 안다.",
+      "호랑이 굴에 가야 호랑이 새끼를 잡는다.",
+      "길고 짧은 것은 대어 보아야 안다.",
+      // 생활 문장
+      "오늘도 즐거운 하루가 시작되었습니다.",
+      "친구와 사이좋게 지내는 것이 중요합니다.",
+      "아침에 일찍 일어나면 하루가 길어집니다.",
+      "책을 많이 읽으면 생각이 깊어집니다.",
+      "우리 반 친구들은 모두 소중합니다.",
+      "쉬는 시간에 운동장에서 축구를 했습니다.",
+      "급식 시간에 맛있는 반찬이 나왔습니다.",
+      "비가 그친 뒤 하늘에 무지개가 떴습니다.",
+      "도서관에서는 조용히 책을 읽어야 합니다.",
+      "횡단보도를 건널 때는 좌우를 살핍니다.",
+      "용돈을 아껴서 저금통에 저축했습니다.",
+      "물건을 사기 전에 꼭 필요한지 생각합니다.",
+      "한글은 세종대왕이 만든 우리 글자입니다.",
+      "지구는 태양 주위를 일 년에 한 바퀴 돕니다.",
+      "봄에는 꽃이 피고 가을에는 단풍이 듭니다.",
+      "약속을 잘 지키는 사람이 믿음을 얻습니다.",
+      "실수해도 괜찮아, 다시 도전하면 돼.",
+      "고마운 마음은 말로 표현해야 전해집니다.",
+      "함께 힘을 모으면 어려운 일도 해낼 수 있습니다.",
+      "쓰레기는 분리해서 버려야 환경을 지킬 수 있습니다.",
+      "꾸준히 연습하면 타자 실력이 쑥쑥 늘어납니다.",
+      "바른 자세로 앉아서 열 손가락으로 입력합니다.",
+      "내일은 오늘보다 더 멋진 내가 될 거야.",
+      "독도는 대한민국의 아름다운 섬입니다."
+    ];
+
+    const GAME_SECONDS = [60, 120, 180];
+    const ITEM_TYPES = ["SWAP_FIRST", "BOOST_20", "HALF_FIRST", "BLIND_ALL"];
+    const ITEM_LABELS = {
+      SWAP_FIRST: "🔄 1등과 점수 바꾸기",
+      BOOST_20: "🚀 점수 +20% (최소 20점)",
+      HALF_FIRST: "💣 1등 점수 50% 깎기",
+      BLIND_ALL: "🕶️ 상대 전원 먹칠하기"
+    };
+
+    const makeId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+    // 브라우저끼리 직접 연결(PeerJS)할 때 쓰는 방 이름 앞부분
+    const PEER_PREFIX = "taja-battle-kr-v1-";
+
     function App() {
-      const [view, setView] = useState("LOBBY");
+      const [view, setView] = useState("LOBBY"); // LOBBY, ROOM, GAME, RESULT
       const [playerName, setPlayerName] = useState("");
-      const [roomCode, setRoomCode] = useState("");
-      const [mode, setMode] = useState("WORD");
+      const [inputCode, setInputCode] = useState(""); // 로비에서 입력 중인 코드
+      const [roomCode, setRoomCode] = useState("");   // 실제로 입장한 방 코드
+      const [mode, setMode] = useState("WORD");       // WORD or SENTENCE
+      const [duration, setDuration] = useState(120);
       const [isHost, setIsHost] = useState(false);
+      const [busy, setBusy] = useState(false);
+      const [myId, setMyId] = useState("");
 
       const [players, setPlayers] = useState([]);
       const [targetText, setTargetText] = useState("");
       const [input, setInput] = useState("");
-      
-      const [score, setScore] = useState(0);
       const [combo, setCombo] = useState(0);
       const [items, setItems] = useState([]);
-      
-      const [effectMsg, setEffectMsg] = useState("");
       const [isBlind, setIsBlind] = useState(false);
+      const [isWrong, setIsWrong] = useState(false);
+      const [effectMsg, setEffectMsg] = useState("");
+      const [timeLeft, setTimeLeft] = useState(0);
 
-      // P2P 통신용 Refs
+      // 연결 콜백은 한 번만 등록되므로, 그 안에서 쓰는 값은 모두 ref로 관리한다
+      const roomRef = useRef({ status: null, mode: "WORD", duration: 120, players: [] }); // 방장이 가진 원본
       const peerRef = useRef(null);
-      const connsRef = useRef([]); // 방장용 연결 목록
-      const hostConnRef = useRef(null); // 학생용 방장 연결
+      const connRef = useRef(null);   // 참가자 → 방장 연결
+      const connsRef = useRef({});    // 방장 → 참가자 연결들
+      const isHostRef = useRef(false);
+      const modeRef = useRef("WORD");
+      const durationRef = useRef(120);
+      const statusRef = useRef(null);
+      const targetRef = useRef("");
+      const comboRef = useRef(0);
+      const composingRef = useRef(false);
+      const enterPendingRef = useRef(false);
+      const endAtRef = useRef(0);
+      const inputEl = useRef(null);
 
-      // 실시간 상태 최신화
-      const playerNameRef = useRef("");
-      const playersRef = useRef([]);
-      
-      useEffect(() => { playerNameRef.current = playerName; }, [playerName]);
-      useEffect(() => { playersRef.current = players; }, [players]);
+      // 점수는 항상 방장이 보내준 값을 기준으로 한다
+      const me = players.find(p => p.id === myId);
+      const score = me ? me.score : 0;
+      const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
 
       const showEffect = (txt) => {
         setEffectMsg(txt);
-        setTimeout(() => setEffectMsg(""), 2500);
+        setTimeout(() => setEffectMsg(""), 2000);
       };
 
-      const triggerLocalEffect = (data) => {
-         if (data.item === "BLIND_ALL" && data.sender !== playerNameRef.current) {
-           setIsBlind(true);
-           setTimeout(() => setIsBlind(false), 3000);
-         }
-         if (data.item === "SWAP_FIRST") showEffect(`🔄 ${data.sender}님이 1등과 점수를 바꿨습니다!`);
-         if (data.item === "BOOST_20") showEffect(`🚀 ${data.sender}님이 점수를 20% 올렸습니다!`);
-         if (data.item === "HALF_FIRST") showEffect(`💣 ${data.sender}님이 1등 점수를 반토막 냈습니다!`);
-         if (data.item === "BLIND_ALL") showEffect(`🕶️ ${data.sender}님의 화면 먹칠 공격!`);
+      // 다음 문제 출제 (직전 문제 제외)
+      const nextQuestion = () => {
+        const pool = modeRef.current === "WORD" ? WORDS : SENTENCES;
+        let next = targetRef.current;
+        while (next === targetRef.current) {
+          next = pool[Math.floor(Math.random() * pool.length)];
+        }
+        targetRef.current = next;
+        setTargetText(next);
+        setInput("");
       };
 
-      // 방장: 모든 학생에게 데이터 전송
-      const broadcast = (data) => {
-        connsRef.current.forEach(c => c.send(data));
+      // 방 상태를 화면에 반영 (방장·참가자 공통)
+      const applyRoom = (r) => {
+        setPlayers(r.players);
+        modeRef.current = r.mode;
+        durationRef.current = r.duration;
+        setMode(r.mode);
+        setDuration(r.duration);
+
+        if (r.status === statusRef.current) return;
+        statusRef.current = r.status;
+
+        if (r.status === "WAITING") {
+          comboRef.current = 0;
+          setCombo(0);
+          setItems([]);
+          setIsBlind(false);
+          setView("ROOM");
+        } else if (r.status === "PLAYING") {
+          comboRef.current = 0;
+          setCombo(0);
+          setItems([]);
+          endAtRef.current = Date.now() + r.duration * 1000;
+          setTimeLeft(r.duration);
+          nextQuestion();
+          setView("GAME");
+        } else if (r.status === "FINISHED") {
+          setView("RESULT");
+        }
       };
 
-      // 방장: 아이템 및 점수 중앙 처리
-      const handleHostItem = (item, sender) => {
-        let current = [...playersRef.current];
-        const sorted = [...current].sort((a, b) => b.score - a.score);
-        const first = sorted[0];
+      // 참가자(그리고 방장 자신)가 받는 메시지 처리
+      const clientHandle = (msg) => {
+        if (msg.type === "state") applyRoom(msg.room);
+        else if (msg.type === "blind") {
+          setIsBlind(true);
+          setTimeout(() => setIsBlind(false), 3000);
+        } else if (msg.type === "msg") showEffect(msg.text);
+      };
 
-        if (item === 'SWAP_FIRST' && first && first.name !== sender) {
-          const senderObj = current.find(p => p.name === sender);
-          if(senderObj) {
-             const temp = first.score;
-             first.score = senderObj.score;
-             senderObj.score = temp;
+      // ---------------- 방장 전용 로직 ----------------
+      const sendTo = (id, msg) => {
+        if (id === "host") return clientHandle(msg);
+        const c = connsRef.current[id];
+        if (c && c.open) c.send(msg);
+      };
+
+      // 방 상태를 바꾸고 모두에게 알림
+      const commit = (r) => {
+        roomRef.current = r;
+        applyRoom(r);
+        Object.values(connsRef.current).forEach(c => { if (c.open) c.send({ type: "state", room: r }); });
+      };
+
+      const hostHandle = (id, msg, conn) => {
+        const r = roomRef.current;
+        const commitPlayers = (list) => commit({ ...r, players: list });
+
+        if (msg.type === "join") {
+          const name = String(msg.name || "").trim().slice(0, 10);
+          if (r.status !== "WAITING") return conn.send({ type: "error", text: "이미 게임이 진행 중인 방입니다!" });
+          if (!name || r.players.some(p => p.name === name)) {
+            return conn.send({ type: "error", text: "이미 사용 중인 이름입니다. 다른 이름을 입력하세요!" });
           }
-        } else if (item === 'BOOST_20') {
-          const senderObj = current.find(p => p.name === sender);
-          if(senderObj) senderObj.score = Math.floor(senderObj.score * 1.2) + 20;
-        } else if (item === 'HALF_FIRST' && first) {
-          first.score = Math.floor(first.score * 0.5);
+          connsRef.current[id] = conn;
+          return commitPlayers([...r.players, { id, name, score: 0, combo: 0, joined: Date.now() }]);
         }
 
-        setPlayers([...current]);
-        broadcast({ type: 'SYNC_PLAYERS', players: current });
-        
-        const effectData = { type: 'EFFECT', item, sender };
-        broadcast(effectData);
-        triggerLocalEffect(effectData);
+        const player = r.players.find(p => p.id === id);
+        if (!player || r.status !== "PLAYING") return;
+        const change = (targetId, fn) => (p) => (p.id === targetId ? { ...p, ...fn(p) } : p);
+
+        if (msg.type === "correct") {
+          const added = r.mode === "WORD" ? 10 : 30;
+          commitPlayers(r.players.map(change(id, p => ({ score: p.score + added, combo: Number(msg.combo) || 0 }))));
+        } else if (msg.type === "wrong") {
+          commitPlayers(r.players.map(change(id, () => ({ combo: 0 }))));
+        } else if (msg.type === "item") {
+          // 나를 제외한 최고 득점자
+          const top = r.players.filter(p => p.id !== id).sort((a, b) => b.score - a.score)[0];
+
+          if (msg.item === "SWAP_FIRST") {
+            if (!top || top.score <= player.score) return sendTo(id, { type: "msg", text: "이미 1등이라 바꿀 수 없어요!" });
+            commitPlayers(r.players
+              .map(change(id, () => ({ score: top.score })))
+              .map(change(top.id, () => ({ score: player.score }))));
+            sendTo(id, { type: "msg", text: `1등(${top.name})과 점수 교환 성공!` });
+            sendTo(top.id, { type: "msg", text: `${player.name}에게 점수를 빼앗겼어요!` });
+          } else if (msg.item === "BOOST_20") {
+            commitPlayers(r.players.map(change(id, p => ({ score: p.score + Math.max(20, Math.floor(p.score * 0.2)) }))));
+            sendTo(id, { type: "msg", text: "점수 20% 증가!" });
+          } else if (msg.item === "HALF_FIRST") {
+            if (!top || top.score < player.score || top.score === 0) {
+              return sendTo(id, { type: "msg", text: "내가 1등이라 깎을 상대가 없어요!" });
+            }
+            commitPlayers(r.players.map(change(top.id, p => ({ score: Math.floor(p.score * 0.5) }))));
+            sendTo(id, { type: "msg", text: `1등(${top.name})의 점수를 반토막냄!` });
+            sendTo(top.id, { type: "msg", text: `${player.name}의 공격으로 점수가 반토막!` });
+          } else if (msg.item === "BLIND_ALL") {
+            r.players.forEach(p => { if (p.id !== id) sendTo(p.id, { type: "blind" }); });
+            sendTo(id, { type: "msg", text: "상대방 전원 먹칠 공격!" });
+          }
+        }
       };
 
-      // 1. 방 만들기 (선생님이 누름)
+      // 내 행동 보내기: 방장은 바로 처리, 참가자는 방장에게 전송
+      const act = (msg) => {
+        if (isHostRef.current) hostHandle("host", msg);
+        else if (connRef.current && connRef.current.open) connRef.current.send(msg);
+      };
+
+      // 방 만들기 (4자리 코드, 중복 시 재시도)
       const createRoom = () => {
-        if (!playerName.trim()) return alert("이름을 입력해주세요!");
-        const code = Math.floor(1000 + Math.random() * 9000).toString();
-        const peerId = `typing-battle-${code}`; 
-        
-        const peer = new Peer(peerId);
-        peerRef.current = peer;
+        const name = playerName.trim();
+        if (!name) return alert("이름을 입력해주세요!");
+        setBusy(true);
 
-        peer.on('open', () => {
-          setRoomCode(code);
-          setIsHost(true);
-          const initial = [{ name: playerName, score: 0 }];
-          setPlayers(initial);
-          setView("ROOM");
-        });
+        const tryOpen = (attempt) => {
+          const code = Math.floor(1000 + Math.random() * 9000).toString();
+          const peer = new Peer(PEER_PREFIX + code);
 
-        // 학생 접속 처리
-        peer.on('connection', (conn) => {
-          connsRef.current.push(conn);
-          conn.on('data', (data) => {
-            let current = [...playersRef.current];
-            if (data.type === 'JOIN') {
-              current.push({ name: data.name, score: 0 });
-              setPlayers([...current]);
-              broadcast({ type: 'SYNC_PLAYERS', players: current });
-            } else if (data.type === 'UPDATE_SCORE') {
-              current = current.map(p => p.name === data.name ? { ...p, score: data.score } : p);
-              setPlayers([...current]);
-              broadcast({ type: 'SYNC_PLAYERS', players: current });
-            } else if (data.type === 'USE_ITEM') {
-              handleHostItem(data.item, data.sender);
+          peer.on("open", () => {
+            peerRef.current = peer;
+            isHostRef.current = true;
+            setIsHost(true);
+            setMyId("host");
+            setRoomCode(code);
+            setBusy(false);
+            commit({
+              status: "WAITING", mode, duration,
+              players: [{ id: "host", name, score: 0, combo: 0, joined: Date.now() }]
+            });
+          });
+
+          peer.on("connection", (conn) => {
+            conn.on("data", (m) => hostHandle(conn.peer, m, conn));
+            conn.on("close", () => {
+              delete connsRef.current[conn.peer];
+              const r = roomRef.current;
+              // 대기 중에 나간 학생만 목록에서 제거 (게임 중에는 점수 유지)
+              if (r.status === "WAITING") commit({ ...r, players: r.players.filter(p => p.id !== conn.peer) });
+            });
+          });
+
+          peer.on("disconnected", () => { if (!peer.destroyed) peer.reconnect(); });
+
+          peer.on("error", (err) => {
+            if (err.type === "unavailable-id" && attempt < 5) {
+              peer.destroy();
+              tryOpen(attempt + 1);
+            } else if (!peerRef.current) {
+              peer.destroy();
+              setBusy(false);
+              alert("방 만들기 실패: 인터넷 연결을 확인하세요. (" + err.type + ")");
             }
           });
+        };
+        tryOpen(0);
+      };
+
+      // 방 참가
+      const joinRoom = () => {
+        const name = playerName.trim();
+        const code = inputCode.trim();
+        if (!name || !code) return alert("이름과 방코드를 입력하세요!");
+        setBusy(true);
+
+        const peer = new Peer();
+        let done = false;
+        const fail = (text) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          peer.destroy();
+          setBusy(false);
+          alert(text);
+        };
+        const timer = setTimeout(
+          () => fail("연결 시간이 초과되었습니다. 방 코드를 확인하거나, 네트워크가 기기 간 직접 연결을 막고 있는지 확인하세요."),
+          12000
+        );
+
+        peer.on("open", (id) => {
+          const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: "json" });
+          conn.on("open", () => {
+            connRef.current = conn;
+            setMyId(id);
+            conn.send({ type: "join", name });
+          });
+          conn.on("data", (m) => {
+            if (m.type === "error") return fail(m.text);
+            if (!done) {
+              done = true;
+              clearTimeout(timer);
+              peerRef.current = peer;
+              isHostRef.current = false;
+              setIsHost(false);
+              setRoomCode(code);
+              setBusy(false);
+            }
+            clientHandle(m);
+          });
+          conn.on("close", () => {
+            if (peerRef.current === peer) {
+              alert("방장과의 연결이 끊어졌습니다. 처음 화면으로 돌아갑니다.");
+              location.reload();
+            }
+          });
+        });
+
+        peer.on("error", (err) => {
+          fail(err.type === "peer-unavailable" ? "존재하지 않는 방입니다!" : "연결 실패: 인터넷 연결을 확인하세요. (" + err.type + ")");
         });
       };
 
-      // 2. 방 입장 (학생들이 누름)
-      const joinRoom = () => {
-        if (!playerName.trim() || !roomCode.trim()) return alert("이름과 방코드를 입력하세요!");
-        const peer = new Peer();
-        peerRef.current = peer;
+      // 게임 타이머
+      useEffect(() => {
+        if (view !== "GAME") return;
+        const timer = setInterval(() => {
+          const left = Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
+          setTimeLeft(left);
+          if (left <= 0) {
+            clearInterval(timer);
+            if (isHostRef.current) commit({ ...roomRef.current, status: "FINISHED" });
+            else setView("RESULT");
+          }
+        }, 250);
+        return () => clearInterval(timer);
+      }, [view]);
 
-        peer.on('open', () => {
-          const hostId = `typing-battle-${roomCode}`;
-          const conn = peer.connect(hostId);
-          hostConnRef.current = conn;
-          
-          conn.on('open', () => {
-            conn.send({ type: 'JOIN', name: playerName });
-            setView("ROOM");
-          });
+      // 문제가 바뀌면 입력창에 포커스
+      useEffect(() => {
+        if (view === "GAME" && inputEl.current) inputEl.current.focus();
+      }, [view, targetText]);
 
-          conn.on('data', (data) => {
-            if (data.type === 'SYNC_PLAYERS') {
-              setPlayers(data.players);
-              const me = data.players.find(p => p.name === playerNameRef.current);
-              if (me) setScore(me.score); 
-            } else if (data.type === 'START') {
-              setMode(data.mode);
-              setView("GAME");
-              setTargetText(data.mode === "WORD" ? WORDS[0] : SENTENCES[0]);
-            } else if (data.type === 'EFFECT') {
-              triggerLocalEffect(data);
-            }
-          });
-        });
+      // 정답 처리
+      const handleCorrect = () => {
+        const newCombo = comboRef.current + 1;
+        comboRef.current = newCombo;
+        setCombo(newCombo);
+
+        // 3콤보마다 아이템 획득 (3, 6, 9회...)
+        if (newCombo % 3 === 0) {
+          const newItem = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+          setItems(prev => [...prev, newItem]);
+        }
+
+        act({ type: "correct", combo: newCombo });
+        nextQuestion();
+      };
+
+      // 오답 처리 (Enter로 틀린 답을 제출했을 때)
+      const handleWrong = () => {
+        comboRef.current = 0;
+        setCombo(0);
+        setIsWrong(true);
+        setTimeout(() => setIsWrong(false), 400);
+        act({ type: "wrong" });
+      };
+
+      const isMatch = (val) => targetRef.current && val.trim() === targetRef.current;
+
+      // 타자 입력 처리 (한글 조합 중에는 정답 판정을 미룬다)
+      const handleInputChange = (e) => {
+        const val = e.target.value.replace(/^\s+/, "");
+        setInput(val);
+        if (composingRef.current || e.nativeEvent.isComposing) return;
+        if (isMatch(val)) handleCorrect();
+      };
+
+      const handleCompositionStart = () => { composingRef.current = true; };
+
+      const handleCompositionEnd = (e) => {
+        composingRef.current = false;
+        const val = e.target.value;
+        const wasEnter = enterPendingRef.current;
+        enterPendingRef.current = false;
+        if (isMatch(val)) handleCorrect();
+        else if (wasEnter && val.trim()) handleWrong();
+      };
+
+      const handleKeyDown = (e) => {
+        if (e.key !== "Enter") return;
+        if (composingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) {
+          enterPendingRef.current = true; // 조합이 끝나는 시점에 판정
+          return;
+        }
+        const val = e.target.value;
+        if (!val.trim()) return;
+        if (isMatch(val)) handleCorrect();
+        else handleWrong();
+      };
+
+      // 아이템 사용 (쓸 수 없는 상황이면 아이템을 소모하지 않음)
+      const useItem = (itemType, index) => {
+        const topOther = sortedPlayers.find(p => p.id !== myId);
+        if (itemType === "SWAP_FIRST" && (!topOther || topOther.score <= score)) {
+          return showEffect("이미 1등이라 바꿀 수 없어요!");
+        }
+        if (itemType === "HALF_FIRST" && (!topOther || topOther.score < score || topOther.score === 0)) {
+          return showEffect("내가 1등이라 깎을 상대가 없어요!");
+        }
+        setItems(prev => prev.filter((_, i) => i !== index));
+        act({ type: "item", item: itemType });
       };
 
       const startGame = () => {
-        setView("GAME");
-        const firstWord = mode === "WORD" ? WORDS[0] : SENTENCES[0];
-        setTargetText(firstWord);
-        broadcast({ type: 'START', mode });
+        commit({ ...roomRef.current, status: "PLAYING" });
       };
 
-      const handleInputChange = (e) => {
-        const val = e.target.value;
-        setInput(val);
-        
-        if (val === targetText) {
-          const addedScore = mode === "WORD" ? 10 : 30;
-          const newScore = score + addedScore;
-          const newCombo = combo + 1;
-          
-          setCombo(newCombo);
-          // 3콤보마다 아이템 지급
-          if (newCombo % 3 === 0) {
-            const randomItem = ["SWAP_FIRST", "BOOST_20", "HALF_FIRST", "BLIND_ALL"][Math.floor(Math.random() * 4)];
-            setItems(prev => [...prev, randomItem]);
-          }
-
-          // 점수를 방장에게 전송
-          if (isHost) {
-             let current = [...playersRef.current].map(p => p.name === playerName ? { ...p, score: newScore } : p);
-             setPlayers([...current]);
-             broadcast({ type: 'SYNC_PLAYERS', players: current });
-             setScore(newScore);
-          } else {
-             hostConnRef.current.send({ type: 'UPDATE_SCORE', name: playerName, score: newScore });
-          }
-
-          const pool = mode === "WORD" ? WORDS : SENTENCES;
-          setTargetText(pool[Math.floor(Math.random() * pool.length)]);
-          setInput("");
-        } else if (!targetText.startsWith(val)) {
-          // 오타 났을 때 콤보 초기화
-          setCombo(0); 
-        }
+      // 방장: 같은 방에서 다시 하기
+      const restartGame = () => {
+        const r = roomRef.current;
+        commit({ ...r, status: "WAITING", players: r.players.map(p => ({ ...p, score: 0, combo: 0 })) });
       };
 
-      const useItem = (item, index) => {
-        setItems(prev => prev.filter((_, i) => i !== index));
-        if (isHost) {
-          handleHostItem(item, playerName);
-        } else {
-          hostConnRef.current.send({ type: 'USE_ITEM', item, sender: playerName });
-        }
-      };
-
-      // ----------------------------------------------------
-      // UI 렌더링
-      // ----------------------------------------------------
+      // ---------------- UI 렌더링 ----------------
       if (view === "LOBBY") {
         return (
           <div className="flex flex-col items-center justify-center min-h-screen p-4">
             <h1 className="text-4xl font-bold text-indigo-400 mb-8">⚡ 실시간 타자 대결 ⚡</h1>
             <div className="bg-slate-800 p-6 rounded-xl w-full max-w-md shadow-lg space-y-4">
-              <input type="text" placeholder="이름 (닉네임)" className="w-full p-3 rounded bg-slate-700 text-white outline-none border border-slate-600 focus:border-indigo-500" value={playerName} onChange={e => setPlayerName(e.target.value)} />
+              <input
+                type="text"
+                placeholder="이름 (닉네임)"
+                maxLength={10}
+                className="w-full p-3 rounded bg-slate-700 text-white outline-none border border-slate-600 focus:border-indigo-500"
+                value={playerName}
+                onChange={e => setPlayerName(e.target.value)}
+              />
               <div className="flex space-x-2">
-                <select className="p-3 rounded bg-slate-700 text-white border border-slate-600" value={mode} onChange={e => setMode(e.target.value)}>
-                  <option value="WORD">단어 연습</option><option value="SENTENCE">문장 연습</option>
+                <select
+                  className="p-3 rounded bg-slate-700 text-white border border-slate-600"
+                  value={mode}
+                  onChange={e => setMode(e.target.value)}
+                >
+                  <option value="WORD">단어 연습</option>
+                  <option value="SENTENCE">문장 연습</option>
                 </select>
-                <button onClick={createRoom} className="flex-1 bg-indigo-600 hover:bg-indigo-500 font-bold p-3 rounded">방 만들기 (선생님)</button>
+                <select
+                  className="p-3 rounded bg-slate-700 text-white border border-slate-600"
+                  value={duration}
+                  onChange={e => setDuration(Number(e.target.value))}
+                >
+                  {GAME_SECONDS.map(s => <option key={s} value={s}>{s / 60}분</option>)}
+                </select>
+                <button onClick={createRoom} disabled={busy} className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 font-bold p-3 rounded">
+                  방 만들기
+                </button>
               </div>
               <div className="border-t border-slate-700 my-4"></div>
               <div className="flex space-x-2">
-                <input type="text" placeholder="방 코드 4자리" className="flex-1 p-3 rounded bg-slate-700 text-white outline-none border border-slate-600" value={roomCode} onChange={e => setRoomCode(e.target.value)} />
-                <button onClick={joinRoom} className="bg-emerald-600 hover:bg-emerald-500 font-bold p-3 rounded">입장하기 (학생)</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="방 코드 4자리"
+                  className="flex-1 p-3 rounded bg-slate-700 text-white outline-none border border-slate-600"
+                  value={inputCode}
+                  onChange={e => setInputCode(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !busy) joinRoom(); }}
+                />
+                <button onClick={joinRoom} disabled={busy} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-bold p-3 rounded">
+                  입장하기
+                </button>
               </div>
-              <p className="text-xs text-slate-400 text-center mt-2">※ 선생님 컴퓨터가 임시 서버 역할을 합니다.</p>
             </div>
           </div>
         );
@@ -264,86 +594,138 @@
         return (
           <div className="flex flex-col items-center justify-center min-h-screen p-4">
             <div className="bg-slate-800 p-6 rounded-xl w-full max-w-lg text-center shadow-lg">
-              <h2 className="text-2xl font-bold text-slate-300">대기실</h2>
+              <h2 className="text-2xl font-bold text-slate-300">
+                대기실 (모드: {mode === "WORD" ? "단어" : "문장"} · {duration / 60}분)
+              </h2>
               <div className="text-5xl font-extrabold text-indigo-400 my-4">{roomCode}</div>
-              <p className="text-slate-400 mb-6">학생들에게 방 코드를 공유해 주세요!</p>
+              <p className="text-slate-400 mb-6">{isHost ? "학생들에게 방 코드를 공유해 주세요! 이 탭을 닫으면 방이 사라집니다." : "방에 입장했습니다."}</p>
 
               <h3 className="text-lg font-bold mb-2 text-left">참가자 목록 ({players.length}명)</h3>
-              <div className="bg-slate-700 rounded p-4 mb-6 max-h-40 overflow-y-auto space-y-2">
-                {players.map(p => (
-                  <div key={p.name} className="flex justify-between items-center bg-slate-600 p-2 rounded">
+              <div className="bg-slate-700 rounded p-4 mb-6 max-h-60 overflow-y-auto space-y-2">
+                {[...players].sort((a, b) => a.joined - b.joined).map(p => (
+                  <div key={p.id} className="flex justify-between items-center bg-slate-600 p-2 rounded">
                     <span className="font-semibold">{p.name}</span>
-                    {p.name === playerName && <span className="text-xs bg-indigo-500 px-2 py-1 rounded">나</span>}
+                    {p.id === myId && <span className="text-xs bg-indigo-500 px-2 py-1 rounded">나</span>}
                   </div>
                 ))}
               </div>
 
               {isHost ? (
-                <button onClick={startGame} className="w-full bg-indigo-600 hover:bg-indigo-500 font-bold p-4 rounded-lg text-lg">대결 시작하기!</button>
+                <button onClick={startGame} className="w-full bg-indigo-600 hover:bg-indigo-500 font-bold p-4 rounded-lg text-lg">
+                  대결 시작하기!
+                </button>
               ) : (
-                <p className="text-slate-400 animate-pulse">방장(선생님)이 게임을 시작하기를 기다리는 중...</p>
+                <p className="text-slate-400 animate-pulse">방장이 게임을 시작하기를 기다리는 중...</p>
               )}
             </div>
           </div>
         );
       }
 
-      const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+      if (view === "RESULT") {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen p-4">
+            <div className="bg-slate-800 p-6 rounded-xl w-full max-w-lg text-center shadow-lg">
+              <h2 className="text-3xl font-bold text-amber-300 mb-6">🏆 최종 결과 🏆</h2>
+              <div className="space-y-2 mb-6 max-h-96 overflow-y-auto">
+                {sortedPlayers.map((p, idx) => (
+                  <div key={p.id} className={`p-3 rounded flex justify-between items-center ${p.id === myId ? "bg-indigo-900 border border-indigo-500" : "bg-slate-700"}`}>
+                    <span className="font-semibold">
+                      {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}위`} {p.name}
+                    </span>
+                    <span className="text-indigo-300 font-bold">{p.score}점</span>
+                  </div>
+                ))}
+              </div>
+              {isHost ? (
+                <button onClick={restartGame} className="w-full bg-indigo-600 hover:bg-indigo-500 font-bold p-4 rounded-lg text-lg mb-2">
+                  같은 방에서 다시 하기
+                </button>
+              ) : (
+                <p className="text-slate-400 mb-2">방장이 다시 시작하면 대기실로 이동합니다.</p>
+              )}
+              <button onClick={() => location.reload()} className="w-full bg-slate-600 hover:bg-slate-500 font-bold p-3 rounded-lg">
+                처음으로
+              </button>
+            </div>
+          </div>
+        );
+      }
 
+      // GAME
       return (
         <div className="flex flex-col min-h-screen p-4 max-w-4xl mx-auto">
+          {/* 상단바 */}
           <div className="flex justify-between items-center bg-slate-800 p-4 rounded-xl mb-4">
             <div>
               <span className="text-sm text-slate-400">내 점수</span>
               <div className="text-2xl font-bold text-indigo-400">{score}점</div>
             </div>
-            <div>
-              <span className="text-sm text-slate-400">내 콤보</span>
+            <div className="text-center">
+              <span className="text-sm text-slate-400">남은 시간</span>
+              <div className={`text-2xl font-bold ${timeLeft <= 10 ? "text-red-400" : "text-white"}`}>⏱ {formatTime(timeLeft)}</div>
+            </div>
+            <div className="text-right">
+              <span className="text-sm text-slate-400">콤보</span>
               <div className="text-2xl font-bold text-amber-400">🔥 {combo}</div>
             </div>
           </div>
 
+          {/* 알림 메시지 */}
           {effectMsg && (
             <div className="bg-indigo-600 text-white font-bold p-3 rounded-lg text-center mb-4 animate-bounce">
               {effectMsg}
             </div>
           )}
 
+          {/* 중앙 문제 & 타자 입력 영역 */}
           <div className="flex-1 bg-slate-800 p-8 rounded-xl flex flex-col justify-center items-center shadow-lg relative mb-4">
-            <div className={`text-4xl font-bold mb-8 text-center tracking-wide transition-all ${isBlind ? "ink-blind" : "text-amber-300"}`}>
+            <div className={`text-3xl font-bold mb-8 text-center tracking-wide ${isBlind ? "ink-blind" : "text-amber-300"}`}>
               {targetText}
             </div>
             <input
+              ref={inputEl}
               type="text"
-              className="w-full max-w-lg p-4 rounded-lg bg-slate-900 text-2xl text-white outline-none border-2 border-indigo-500 text-center"
-              placeholder="위 글자를 입력하세요!"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className={`w-full max-w-lg p-4 rounded-lg bg-slate-900 text-2xl text-white outline-none border-2 text-center ${isWrong ? "border-red-500" : "border-indigo-500"}`}
+              placeholder="똑같이 입력하고 Enter!"
               value={input}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onPaste={e => e.preventDefault()}
               autoFocus
             />
+            <p className="text-slate-500 text-sm mt-3">틀린 답으로 Enter를 누르면 콤보가 끊깁니다.</p>
           </div>
 
+          {/* 아이템 바 */}
           <div className="bg-slate-800 p-4 rounded-xl mb-4">
             <span className="text-sm font-bold text-slate-400 mb-2 block">보유 아이템 (3콤보마다 획득)</span>
             <div className="flex flex-wrap gap-2">
-              {items.length === 0 && <span className="text-slate-500 text-sm">오타 없이 타자를 치면 아이템이 생깁니다!</span>}
+              {items.length === 0 && <span className="text-slate-500 text-sm">아이템이 없습니다.</span>}
               {items.map((it, idx) => (
-                <button key={idx} onClick={() => useItem(it, idx)} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 py-2 rounded text-sm shadow-md transition-transform hover:scale-105">
-                  {it === "SWAP_FIRST" && "🔄 1등과 내 점수 바꾸기"}
-                  {it === "BOOST_20" && "🚀 내 점수 20% 증가"}
-                  {it === "HALF_FIRST" && "💣 1등 점수 반토막 깎기"}
-                  {it === "BLIND_ALL" && "🕶️ 상대방 전원 먹칠하기"}
+                <button
+                  key={idx}
+                  onClick={() => useItem(it, idx)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 py-2 rounded text-sm transition"
+                >
+                  {ITEM_LABELS[it]}
                 </button>
               ))}
             </div>
           </div>
 
+          {/* 실시간 순위표 */}
           <div className="bg-slate-800 p-4 rounded-xl">
-            <h3 className="font-bold text-slate-300 mb-2">실시간 순위표</h3>
+            <h3 className="font-bold text-slate-300 mb-2">실시간 순위</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {sortedPlayers.map((p, idx) => (
-                <div key={p.name} className={`p-3 rounded flex justify-between items-center ${p.name === playerName ? "bg-indigo-900 border border-indigo-500" : "bg-slate-700"}`}>
-                  <span className="font-semibold text-sm truncate mr-2">{idx + 1}위 {p.name}</span>
+                <div key={p.id} className={`p-3 rounded flex justify-between items-center ${p.id === myId ? "bg-indigo-900 border border-indigo-500" : "bg-slate-700"}`}>
+                  <span className="font-semibold text-sm">{idx + 1}위 {p.name}</span>
                   <span className="text-indigo-300 font-bold">{p.score}점</span>
                 </div>
               ))}
@@ -353,7 +735,8 @@
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
     root.render(<App />);
   </script>
 </body>
