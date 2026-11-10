@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>실시간 타자 대결 게임</title>
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; }
+    .ink-blind {
+      background-color: black !important;
+      color: transparent !important;
+      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ----------------------------------------------------
+    // 1. Firebase 설정 (선생님의 Firebase 키를 대입하세요)
+    // ----------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    // 단어 및 문장 데이터
+    const WORDS = ["사과", "바나나", "호랑이", "컴퓨터", "우주선", "무지개", "학교", "선생님", "학생", "대한민국", "지구본", "초콜릿", "자전거", "비행기", "스마트폰"];
+    const SENTENCES = [
+      "가는 말이 고와야 오는 말이 돕다.",
+      "티끌 모아 태산이 된다.",
+      "원숭이도 나무에서 떨어질 때가 있다.",
+      "세 살 버릇 여든까지 간다.",
+      "고생 끝에 즐거움이 온다.",
+      "아는 것이 힘이다.",
+      "천 리 길도 한 걸음부터 시작한다."
+    ];
+
+    function App() {
+      const [view, setView] = useState("LOBBY"); // LOBBY, ROOM, GAME, RESULT
+      const [playerName, setPlayerName] = useState("");
+      const [roomCode, setRoomCode] = useState("");
+      const [mode, setMode] = useState("WORD"); // WORD or SENTENCE
+      const [isHost, setIsHost] = useState(false);
+
+      const [players, setPlayers] = useState([]);
+      const [targetText, setTargetText] = useState("");
+      const [input, setInput] = useState("");
+      const [score, setScore] = useState(0);
+      const [combo, setCombo] = useState(0);
+      const [items, setItems] = useState([]);
+      const [isBlind, setIsBlind] = useState(false);
+      const [effectMsg, setEffectMsg] = useState("");
+
+      // 4자리 방코드 생성
+      const createRoom = async () => {
+        if (!playerName.trim()) return alert("이름을 입력해주세요!");
+        const code = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        await db.collection("rooms").doc(code).set({
+          status: "WAITING",
+          mode: mode,
+          host: playerName,
+          created: new Date()
+        });
+
+        await db.collection("rooms").doc(code).collection("players").doc(playerName).set({
+          name: playerName,
+          score: 0,
+          combo: 0,
+          effect: null
+        });
+
+        setRoomCode(code);
+        setIsHost(true);
+        setView("ROOM");
+      };
+
+      // 방 참가
+      const joinRoom = async () => {
+        if (!playerName.trim() || !roomCode.trim()) return alert("이름과 방코드를 입력하세요!");
+        const doc = await db.collection("rooms").doc(roomCode).get();
+        if (!doc.exists) return alert("존재하지 않는 방입니다!");
+
+        await db.collection("rooms").doc(roomCode).collection("players").doc(playerName).set({
+          name: playerName,
+          score: 0,
+          combo: 0,
+          effect: null
+        });
+
+        setMode(doc.data().mode);
+        setIsHost(false);
+        setView("ROOM");
+      };
+
+      // 대기실 리스너 및 게임 시작 동기화
+      useEffect(() => {
+        if (!roomCode) return;
+
+        const unsubscribeRoom = db.collection("rooms").doc(roomCode).onSnapshot((doc) => {
+          if (doc.exists && doc.data().status === "PLAYING") {
+            setView("GAME");
+            nextQuestion();
+          }
+        });
+
+        const unsubscribePlayers = db.collection("rooms").doc(roomCode).collection("players")
+          .onSnapshot((snapshot) => {
+            const list = snapshot.docs.map(d => d.data());
+            setPlayers(list);
+
+            // 나에게 적용된 공격 효과 감지
+            const me = list.find(p => p.name === playerName);
+            if (me && me.effect) {
+              applyEffect(me.effect);
+              db.collection("rooms").doc(roomCode).collection("players").doc(playerName).update({ effect: null });
+            }
+          });
+
+        return () => {
+          unsubscribeRoom();
+          unsubscribePlayers();
+        };
+      }, [room
